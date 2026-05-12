@@ -7,7 +7,11 @@
     "ZONE_TINT_ALPHA": 30,
     "BOUNDARY_DASH": 6,
     "BOUNDARY_GAP": 4,
-    "TITLE_FONT_SIZE": 16
+    "TITLE_FONT_SIZE": 16,
+    "HUD_P1_END_X": 160,
+    "HUD_P2_START_X": 176,
+    "HUD_BAR_HEIGHT": 6,
+    "HUD_ROW_GAP": 2
   },
   "SHIP": {
     "ROTATION_SPEED": 3,
