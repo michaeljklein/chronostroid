@@ -1,9 +1,9 @@
 import type p5 from "p5";
 
-// p5.sound is a separate addon shipped with p5 1.x. Importing for its side
-// effect: it attaches `loadSound` and SoundFile to the p5 prototype. Pulling
-// this in only here (not in `audio.ts`) keeps the pure helper module
-// importable from Node-based vitest without browser globals (window/self).
+// IMPORTANT: globalize p5 BEFORE the addon's side-effect import so the
+// addon's `p5` reference resolves. ESM evaluates sibling imports in source
+// order, so this ordering is load-bearing — do not reshuffle.
+import "./p5-globalize";
 import "p5/lib/addons/p5.sound";
 
 import {

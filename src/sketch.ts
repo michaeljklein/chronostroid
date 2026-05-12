@@ -189,7 +189,16 @@ const sketch = (p: p5) => {
         p.frameRate(60);
         p.textFont("monospace");
         p.noSmooth();
-        audio = loadAudio(p);
+        try {
+            audio = loadAudio(p);
+        } catch (err) {
+            // Audio is non-essential. If the p5.sound addon fails to load
+            // (e.g., the cabinet's audio backend is missing or a future p5
+            // bump breaks the addon), the game continues silently rather
+            // than bricking the canvas.
+            console.warn("audio init failed; continuing without sound", err);
+            audio = null;
+        }
     };
 
     p.draw = () => {
