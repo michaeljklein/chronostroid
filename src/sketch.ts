@@ -65,8 +65,8 @@ type ZoneRuntime = {
     visible: ZoneSnapshot;
     /** Monotonic frontier tick counter, advanced by recordPresent. Used by HUD clock. */
     presentTick: number;
-    /** Zone tick at the moment we last rendered (= presentTick when not in TT). */
-    zoneTick: number;
+    /** Ticks behind the frontier — 0 when at present, positive during rewind. */
+    scrubOffset: number;
 };
 
 function makeRng(): () => number {
@@ -130,7 +130,7 @@ function initZone(zoneId: 1 | 2, p1Pos: Vec2, p2Pos: Vec2, rng: () => number): Z
         tt,
         visible: initialSnapshot,
         presentTick: 0,
-        zoneTick: 0,
+        scrubOffset: 0,
     };
 }
 
@@ -239,7 +239,7 @@ function hudData(zone: ZoneRuntime): HudPlayerData {
     return {
         hp: zone.ship.hp,
         energyFraction: energyFraction(zone.tt.energy),
-        zoneTick: zone.zoneTick,
+        zoneTick: Math.max(0, zone.presentTick - zone.scrubOffset),
         presentTick: zone.presentTick,
     };
 }
@@ -258,6 +258,8 @@ function tickPlayingFrame(
     zone2.tt = tt2.state;
     zone1.visible = tt1.visibleSnapshot;
     zone2.visible = tt2.visibleSnapshot;
+    zone1.scrubOffset = updateScrubOffset(zone1.scrubOffset, p1Input.spinnerDelta, tt1.state);
+    zone2.scrubOffset = updateScrubOffset(zone2.scrubOffset, p2Input.spinnerDelta, tt2.state);
 
     // 2. Live state always advances (per locked render policy: live ship continues
     //    under input while ghost is shown overlaid during TT).
@@ -331,25 +333,30 @@ function tickPlayingFrame(
     if (!zone1.tt.inTimeTravel) {
         zone1.tt = recordPresent(zone1.tt, freshSnapshot(zone1));
         zone1.presentTick++;
-        zone1.zoneTick = zone1.presentTick;
-    } else {
-        zone1.zoneTick = Math.max(0, zone1.presentTick - estimateTicksOffScreen(zone1));
     }
     if (!zone2.tt.inTimeTravel) {
         zone2.tt = recordPresent(zone2.tt, freshSnapshot(zone2));
         zone2.presentTick++;
-        zone2.zoneTick = zone2.presentTick;
-    } else {
-        zone2.zoneTick = Math.max(0, zone2.presentTick - estimateTicksOffScreen(zone2));
     }
 }
 
-function estimateTicksOffScreen(_zone: ZoneRuntime): number {
-    // Placeholder: without instrumenting zone-history depth, we approximate the
-    // scrub offset as the number of ticks the player has spun this frame. The
-    // HUD uses (presentTick - zoneTick) only for the clock label sign; precise
-    // offset rendering is FUTURE_WORK if the approximation feels off.
-    return _zone.tt.ticksSpunThisFrame;
+function updateScrubOffset(
+    prev: number,
+    spinnerDelta: number,
+    ttState: TimeTravelState,
+): number {
+    if (!ttState.inTimeTravel) {
+        // Frontier reached (or never left) — zone tick aligns with present.
+        return 0;
+    }
+    const traversed = ttState.ticksSpunThisFrame;
+    if (spinnerDelta < 0) {
+        return prev + traversed;
+    }
+    if (spinnerDelta > 0) {
+        return Math.max(0, prev - traversed);
+    }
+    return prev;
 }
 
 function drawField(p: p5, zone1: ZoneRuntime, zone2: ZoneRuntime): void {
