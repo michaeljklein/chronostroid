@@ -1,7 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, statSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { createShuffleQueue, nextFromQueue } from "./audio";
+import {
+    createShuffleQueue,
+    nextFromQueue,
+    isAudioReady,
+    type AudioState,
+    type SoundFileLike,
+} from "./audio";
 
 // ---------------------------------------------------------------------------
 // File-on-disk presence tests (do NOT import the audio module's URL-resolving
@@ -99,6 +105,36 @@ describe("createShuffleQueue / nextFromQueue", () => {
     it("nextFromQueue throws on empty pool (poolSize === 0)", () => {
         const q = createShuffleQueue(0);
         expect(() => nextFromQueue(q)).toThrow();
+    });
+
+    it("isAudioReady returns true only when every sound reports isLoaded()", () => {
+        const mk = (loaded: boolean): SoundFileLike => ({
+            play: () => {
+                /* no-op */
+            },
+            isLoaded: () => loaded,
+        });
+        const allLoaded: AudioState = {
+            buckets: {
+                laser: [mk(true), mk(true)],
+                explosion: [mk(true)],
+                shipDamage: [mk(true)],
+                heal: [mk(true)],
+            },
+            queues: {
+                laser: createShuffleQueue(2),
+                explosion: createShuffleQueue(1),
+                shipDamage: createShuffleQueue(1),
+                heal: createShuffleQueue(1),
+            },
+        };
+        expect(isAudioReady(allLoaded)).toBe(true);
+
+        const oneMissing: AudioState = {
+            ...allLoaded,
+            buckets: { ...allLoaded.buckets, heal: [mk(false)] },
+        };
+        expect(isAudioReady(oneMissing)).toBe(false);
     });
 
     it("nextFromQueue refill produces all indices over enough draws", () => {

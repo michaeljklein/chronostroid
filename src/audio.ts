@@ -67,6 +67,16 @@ export function playFromBucket(state: AudioState, name: BucketName): AudioState 
     };
 }
 
+/** All loaded SoundFiles report isLoaded() === true. */
+export function isAudioReady(state: AudioState): boolean {
+    for (const name of Object.keys(state.buckets) as BucketName[]) {
+        for (const s of state.buckets[name]) {
+            if (!s.isLoaded()) return false;
+        }
+    }
+    return true;
+}
+
 export const playLaser = (s: AudioState): AudioState => playFromBucket(s, "laser");
 export const playExplosion = (s: AudioState): AudioState => playFromBucket(s, "explosion");
 export const playShipDamage = (s: AudioState): AudioState => playFromBucket(s, "shipDamage");

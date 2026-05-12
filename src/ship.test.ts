@@ -177,10 +177,11 @@ describe("Ship entity (T-03)", () => {
         const boundary = { selfX, selfY, otherX, otherY };
 
         // Position ship on self's side, give it velocity that will cross bisector this tick.
-        // Bisector is at x=168. Put ship at x=166, vx=3 vy=1 — speed=sqrt(10)≈3.16 < MAX_SPEED,
-        // so drag does NOT fire. After integration: x=169 > 168 → crosses boundary.
-        const state = createShip(166, 131, 0, CONSTANTS.HP.INITIAL);
-        const stateWithVel = { ...state, vx: 3, vy: 1 };
+        // Bisector is at x=168. Put ship at x=167.0, vx=1.5 vy=0.5
+        // → speed = √(1.5² + 0.5²) = √2.5 ≈ 1.58 < MAX_SPEED (2), so drag does NOT fire.
+        // After integration: x = 167.0 + 1.5 = 168.5 > 168 → crosses boundary.
+        const state = createShip(167.0, 131, 0, CONSTANTS.HP.INITIAL);
+        const stateWithVel = { ...state, vx: 1.5, vy: 0.5 };
 
         const result = updateShip(stateWithVel, noInput, boundary);
 
@@ -191,6 +192,6 @@ describe("Ship entity (T-03)", () => {
         expect(result.vx).toBeCloseTo(0, 5);
 
         // Tangential component (vy) should be unchanged (no drag, no perpendicular removal).
-        expect(result.vy).toBeCloseTo(1, 5);
+        expect(result.vy).toBeCloseTo(0.5, 5);
     });
 });

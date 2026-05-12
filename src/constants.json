@@ -15,8 +15,8 @@
   },
   "SHIP": {
     "ROTATION_SPEED": 3,
-    "THRUST_ACCEL": 0.1,
-    "MAX_SPEED": 4,
+    "THRUST_ACCEL": 0.05,
+    "MAX_SPEED": 2,
     "DRAG_FACTOR": 0.95,
     "COLLISION_RADIUS": 8,
     "NOSE_DIST": 16,
@@ -32,7 +32,7 @@
     "START_ANGLE_P2": 180
   },
   "BULLET": {
-    "SPEED": 6,
+    "SPEED": 3,
     "LIFETIME": 60,
     "COOLDOWN": 20,
     "MAX_COUNT": 3,
@@ -43,8 +43,8 @@
     "LARGE_RADIUS": 14,
     "MEDIUM_RADIUS": 8,
     "SMALL_RADIUS": 4,
-    "SPEED_MIN": 0.5,
-    "SPEED_MAX": 1.5,
+    "SPEED_MIN": 0.25,
+    "SPEED_MAX": 0.75,
     "SPAWN_ANGLE_SPREAD": 30,
     "SPLIT_OFFSET_FRACTION": 0.5,
     "SPLIT_DIVERGE_ANGLE": 20,
@@ -59,7 +59,7 @@
   "ENERGY": {
     "MAX": 3600,
     "COST_PER_TICK": 1,
-    "REGEN_PER_TICK": 0.5
+    "REGEN_PER_TICK": 0.25
   },
   "HP": {
     "INITIAL": 10

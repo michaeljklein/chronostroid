@@ -260,16 +260,18 @@ describe("spawnLargeFromEdge", () => {
         expect(speed).toBeCloseTo(A.SPEED_MIN, 10);
     });
 
-    it("speed formula: MEDIUM_RADIUS ≈ 0.929 px/tick", () => {
+    it("speed formula: MEDIUM_RADIUS matches the closed form derived from constants", () => {
         const speed = tierSpeedFormula(A.MEDIUM_RADIUS);
-        // Formula: 0.5 + (1.5 - 0.5) * (1 - 16/28) = 0.5 + 1 * (12/28) = 0.5 + 3/7 ≈ 0.9286
-        expect(speed).toBeCloseTo(0.9286, 3);
+        const expected =
+            A.SPEED_MIN + (A.SPEED_MAX - A.SPEED_MIN) * (1 - A.MEDIUM_RADIUS / A.LARGE_RADIUS);
+        expect(speed).toBeCloseTo(expected, 8);
     });
 
-    it("speed formula: SMALL_RADIUS ≈ 1.214 px/tick", () => {
+    it("speed formula: SMALL_RADIUS matches the closed form derived from constants", () => {
         const speed = tierSpeedFormula(A.SMALL_RADIUS);
-        // Formula: 0.5 + (1.5 - 0.5) * (1 - 8/28) = 0.5 + 1 * (20/28) = 0.5 + 5/7 ≈ 1.2143
-        expect(speed).toBeCloseTo(1.2143, 3);
+        const expected =
+            A.SPEED_MIN + (A.SPEED_MAX - A.SPEED_MIN) * (1 - A.SMALL_RADIUS / A.LARGE_RADIUS);
+        expect(speed).toBeCloseTo(expected, 8);
     });
 
     it("large spawn: actual velocity magnitude = SPEED_MIN", () => {

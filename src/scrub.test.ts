@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyScrubHp, detectHeal } from "./scrub";
+import { applyScrubHp, detectHeal, displayPosition } from "./scrub";
 import {
     createTimeTravelState,
     recordPresent,
@@ -7,6 +7,7 @@ import {
 } from "./time-travel";
 import type { ZoneSnapshot } from "./zone-history";
 import { createShip, type ShipState } from "./ship";
+import { pointInZone } from "./voronoi";
 function snap(ship: ShipState): ZoneSnapshot {
     return { ship: { ...ship }, asteroids: [], bullets: [], hp: ship.hp };
 }
@@ -29,6 +30,51 @@ describe("applyScrubHp", () => {
         const ship = createShip(0, 0, 0, 7);
         const out = applyScrubHp(ship, 7, true);
         expect(out).toBe(ship);
+    });
+});
+
+describe("displayPosition (T-18)", () => {
+    const live = { x: 200, y: 100 };
+    const ghost = { x: 50, y: 100 };
+    it("returns live position when not in TT", () => {
+        expect(displayPosition(live, ghost, false)).toBe(live);
+    });
+    it("returns ghost position when in TT (the Voronoi-rewind mechanic)", () => {
+        expect(displayPosition(live, ghost, true)).toBe(ghost);
+    });
+
+    it("shifts the bisector such that a near-boundary asteroid swaps zones", () => {
+        // P1 live x=200, P1 ghost x=50, P2 live x=300. Asteroid at x=220, y=100.
+        // - Live bisector midpoint x = (200+300)/2 = 250 → asteroid at 220 is in P1's zone.
+        // - Display bisector midpoint x = (50+300)/2 = 175 → asteroid at 220 is in P2's zone.
+        // The asteroid "transfers" to P2's zone — the core T-18 mechanic.
+        const p1Live = { x: 200, y: 100 };
+        const p2Live = { x: 300, y: 100 };
+        const p1Ghost = { x: 50, y: 100 };
+        const asteroid = { x: 220, y: 100 };
+
+        expect(pointInZone(asteroid, p1Live, p2Live)).toBe(1);
+
+        const p1Display = displayPosition(p1Live, p1Ghost, true);
+        const p2Display = displayPosition(p2Live, p2Live, false); // opp not in TT
+        expect(pointInZone(asteroid, p1Display, p2Display)).toBe(2);
+    });
+
+    it("with both in TT, the bisector uses both ghost positions (symmetric)", () => {
+        // P1 live x=200, P1 ghost x=50, P2 live x=300, P2 ghost x=320.
+        // Asteroid at x=180. Both-ghost bisector midpoint = (50+320)/2 = 185 → P1 side.
+        // Live bisector = 250 → also P1 side. (No swap here, just verify rule.)
+        // Now an asteroid at x=200: both-ghost bisector → P2 (200>185); live → P1 (200<250).
+        const p1Live = { x: 200, y: 100 };
+        const p2Live = { x: 300, y: 100 };
+        const p1Ghost = { x: 50, y: 100 };
+        const p2Ghost = { x: 320, y: 100 };
+        const swapping = { x: 200, y: 100 };
+
+        expect(pointInZone(swapping, p1Live, p2Live)).toBe(1);
+        const p1Display = displayPosition(p1Live, p1Ghost, true);
+        const p2Display = displayPosition(p2Live, p2Ghost, true);
+        expect(pointInZone(swapping, p1Display, p2Display)).toBe(2);
     });
 });
 

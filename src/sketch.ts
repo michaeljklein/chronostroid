@@ -49,9 +49,8 @@ import {
     drawZoneTints,
     drawZoneBoundary,
     drawDashedBoundary,
-    computeBoundaryMidpoints,
 } from "./zone-renderer";
-import { pointInZone, type Vec2 } from "./voronoi";
+import { pointInZone, computeZoneBoundary, type Vec2 } from "./voronoi";
 import { drawHud, type HudPlayerData } from "./hud";
 import type { ZoneSnapshot } from "./zone-history";
 import {
@@ -60,9 +59,10 @@ import {
     playExplosion,
     playShipDamage,
     playHeal,
+    isAudioReady,
     type AudioState,
 } from "./audio-runtime";
-import { applyScrubHp, detectHeal } from "./scrub";
+import { applyScrubHp, detectHeal, displayPosition } from "./scrub";
 
 type ZoneRuntime = {
     zoneId: 1 | 2;
@@ -209,6 +209,13 @@ const sketch = (p: p5) => {
         const frameInput = read.input;
 
         if (gameState.name === "LOBBY") {
+            // Loading gate: if audio loaded successfully but isn't ready yet,
+            // show a LOADING overlay and swallow system input. If audio is
+            // null (init failed), fall through and run the game silently.
+            if (audio !== null && !isAudioReady(audio)) {
+                drawLoadingScreen(p);
+                return;
+            }
             const sys = selectSystemInput(gameState, frameInput);
             if (sys !== null) {
                 const next = tickLobby(gameState, sys);
@@ -257,6 +264,16 @@ const sketch = (p: p5) => {
         drawHud(p, hudData(zone1), hudData(zone2));
     };
 };
+
+function drawLoadingScreen(p: p5): void {
+    const cx = CONSTANTS.CANVAS.WIDTH / 2;
+    const cy = CONSTANTS.CANVAS.HEIGHT / 2;
+    p.fill(255);
+    p.noStroke();
+    p.textAlign(p.CENTER, p.CENTER);
+    p.textSize(CONSTANTS.CANVAS.HUD_FONT_SIZE);
+    p.text("LOADING…", cx, cy);
+}
 
 function hudData(zone: ZoneRuntime): HudPlayerData {
     return {
@@ -319,17 +336,26 @@ function tickPlayingFrame(
     zone1.asteroids = zone1.asteroids.map(updateAsteroid);
     zone2.asteroids = zone2.asteroids.map(updateAsteroid);
 
-    // 5. Cross-zone handoff: asteroids and bullets reassigned by current bisector.
-    const p1Now = shipPos(zone1.ship);
-    const p2Now = shipPos(zone2.ship);
+    // 5. Cross-zone handoff: partition by the DISPLAY-position bisector
+    //    (T-18). This is the Voronoi-rewind mechanic — when a player is in
+    //    TT, their display position is the ghost (past) position, so the
+    //    bisector shifts and asteroids/bullets that used to be in their
+    //    zone may now be in opp's zone (and vice versa). Transferred
+    //    asteroids become opp's live asteroids and can damage opp on the
+    //    normal collision path. Live ship clamp (above) still uses live
+    //    positions so the physical ship constraint is preserved.
+    const z1Now = shipPos(zone1.ship);
+    const z2Now = shipPos(zone2.ship);
+    const z1Display = displayPosition(z1Now, shipPos(zone1.visible.ship), zone1.tt.inTimeTravel);
+    const z2Display = displayPosition(z2Now, shipPos(zone2.visible.ship), zone2.tt.inTimeTravel);
 
-    const z1Aster = partitionBy(zone1.asteroids, (a) => pointInZone(asteroidPos(a), p1Now, p2Now) === 1);
-    const z2Aster = partitionBy(zone2.asteroids, (a) => pointInZone(asteroidPos(a), p1Now, p2Now) === 2);
+    const z1Aster = partitionBy(zone1.asteroids, (a) => pointInZone(asteroidPos(a), z1Display, z2Display) === 1);
+    const z2Aster = partitionBy(zone2.asteroids, (a) => pointInZone(asteroidPos(a), z1Display, z2Display) === 2);
     zone1.asteroids = [...z1Aster.stay, ...z2Aster.out];
     zone2.asteroids = [...z2Aster.stay, ...z1Aster.out];
 
-    const z1Bul = partitionBy(zone1.bullets.active, (b) => pointInZone(bulletPos(b), p1Now, p2Now) === 1);
-    const z2Bul = partitionBy(zone2.bullets.active, (b) => pointInZone(bulletPos(b), p1Now, p2Now) === 2);
+    const z1Bul = partitionBy(zone1.bullets.active, (b) => pointInZone(bulletPos(b), z1Display, z2Display) === 1);
+    const z2Bul = partitionBy(zone2.bullets.active, (b) => pointInZone(bulletPos(b), z1Display, z2Display) === 2);
     zone1.bullets = { ...zone1.bullets, active: [...z1Bul.stay, ...z2Bul.out] };
     zone2.bullets = { ...zone2.bullets, active: [...z2Bul.stay, ...z1Bul.out] };
 
@@ -361,9 +387,11 @@ function tickPlayingFrame(
     zone2.bullets = { ...zone2.bullets, active: col2.bullets };
     emitCollisionAudio(col2.events, play);
 
-    // 7. Refill destroyed large asteroids per zone.
-    refillLarges(zone1, p1Now, p2Now, rng);
-    refillLarges(zone2, p1Now, p2Now, rng);
+    // 7. Refill destroyed large asteroids per zone — in-zone check uses the
+    //    same display bisector so refilled larges land inside the zone the
+    //    player currently "sees" as theirs.
+    refillLarges(zone1, z1Display, z2Display, rng);
+    refillLarges(zone2, z1Display, z2Display, rng);
 
     // 8. HP scrubbing (T-17).
     zone1.ship = applyScrubHp(zone1.ship, zone1.visible.ship.hp, zone1.tt.inTimeTravel);
@@ -421,15 +449,16 @@ function updateScrubOffset(
 }
 
 function drawField(p: p5, zone1: ZoneRuntime, zone2: ZoneRuntime): void {
-    // Display positions: live for frontier zones, ghost for time-traveling zones'
-    // bisector reference (live ship is faded but still drawn for context).
     const z1Live = shipPos(zone1.ship);
     const z2Live = shipPos(zone2.ship);
+    const z1Display = displayPosition(z1Live, shipPos(zone1.visible.ship), zone1.tt.inTimeTravel);
+    const z2Display = displayPosition(z2Live, shipPos(zone2.visible.ship), zone2.tt.inTimeTravel);
     const z1Ghost = zone1.tt.inTimeTravel ? shipPos(zone1.visible.ship) : null;
     const z2Ghost = zone2.tt.inTimeTravel ? shipPos(zone2.visible.ship) : null;
 
-    // Zone tints use live positions (bisector follows live ships).
-    drawZoneTints(p, z1Live, z2Live);
+    // Zone tints follow the DISPLAY bisector so the player visually sees
+    // their (shifted) zone match what asteroid partitioning is doing.
+    drawZoneTints(p, z1Display, z2Display);
 
     // Asteroids: snapshot view per zone when in TT, else live.
     const z1Asts = zone1.tt.inTimeTravel ? zone1.visible.asteroids : zone1.asteroids;
@@ -460,14 +489,17 @@ function drawField(p: p5, zone1: ZoneRuntime, zone2: ZoneRuntime): void {
         drawShip(p, zone2.visible.ship, p2Color, CONSTANTS.SHIP.GHOST_ALPHA);
     }
 
-    // Boundary lines: solid bisector of live ships; dashed bisector when either
-    // zone is in TT (between that zone's ghost and the opponent's live).
-    const z1HasGhost = z1Ghost ?? undefined;
-    const z2HasGhost = z2Ghost ?? undefined;
-    const endpoints = computeBoundaryMidpoints(z1Live, z2Live, z1HasGhost, z2HasGhost);
-    drawZoneBoundary(p, endpoints.solid[0], endpoints.solid[1]);
-    if (endpoints.dashed !== undefined) {
-        drawDashedBoundary(p, endpoints.dashed[0], endpoints.dashed[1]);
+    // Boundary lines (T-18):
+    //   - solid = bisector(live, live) — always the physical-state boundary,
+    //     where the live ships actually clamp against.
+    //   - dashed = bisector(display, display) — the virtual boundary that
+    //     partitions asteroids/bullets. Only drawn when it differs from
+    //     solid, i.e. at least one zone is in TT.
+    const liveBoundary = computeZoneBoundary(z1Live, z2Live);
+    drawZoneBoundary(p, liveBoundary[0], liveBoundary[1]);
+    if (z1Ghost !== null || z2Ghost !== null) {
+        const displayBoundary = computeZoneBoundary(z1Display, z2Display);
+        drawDashedBoundary(p, displayBoundary[0], displayBoundary[1]);
     }
 }
 

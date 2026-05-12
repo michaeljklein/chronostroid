@@ -86,5 +86,5 @@ export function loadAudio(p: p5): AudioState {
 }
 
 // Re-export pure play helpers so sketch.ts has a single audio import surface.
-export { playLaser, playExplosion, playShipDamage, playHeal } from "./audio";
+export { playLaser, playExplosion, playShipDamage, playHeal, isAudioReady } from "./audio";
 export type { AudioState } from "./audio";
