@@ -61,7 +61,7 @@ function drawLobby(p: p5, p1Ready: boolean, p2Ready: boolean) {
     p.fill(255);
     p.noStroke();
     p.textAlign(p.CENTER, p.CENTER);
-    p.textSize(16);
+    p.textSize(CONSTANTS.CANVAS.TITLE_FONT_SIZE);
     p.text("CHRONOSTROID", cx, cy - 24);
     p.textSize(CONSTANTS.CANVAS.HUD_FONT_SIZE);
     const p1Text = p1Ready ? "P1: ✓" : "P1: press 1";
@@ -81,7 +81,7 @@ function drawGameOver(p: p5) {
     p.fill(255);
     p.noStroke();
     p.textAlign(p.CENTER, p.CENTER);
-    p.textSize(16);
+    p.textSize(CONSTANTS.CANVAS.TITLE_FONT_SIZE);
     p.text("GAME OVER", CONSTANTS.CANVAS.WIDTH / 2, CONSTANTS.CANVAS.HEIGHT / 2);
 }
 
