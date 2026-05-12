@@ -320,5 +320,63 @@ describe("updateAsteroid", () => {
     });
 });
 
+// ---------------------------------------------------------------------------
+// T-06 follow-on: split-children non-overlap after one tick (non-zero parent velocity)
+// ---------------------------------------------------------------------------
+
+describe("split children do not overlap after one tick", () => {
+    it("children continue to separate after one tick when parent has non-zero velocity", () => {
+        // Parent has non-zero velocity; verify children's center-to-center
+        // distance after one tick is strictly greater than their initial
+        // post-split separation (the diverge angle pushes them apart).
+        for (let seed = 0; seed < 20; seed++) {
+            const rng = mulberry32(seed * 31 + 7);
+            const parent: AsteroidState = {
+                x: 168,
+                y: 131,
+                vx: 1.2,
+                vy: 0.4,
+                tier: "large",
+                vertices: [],
+            };
+            const kids = splitAsteroid(parent, rng);
+            expect(kids).toHaveLength(2);
+
+            const initialSep = Math.hypot(
+                kids[0].x - kids[1].x,
+                kids[0].y - kids[1].y,
+            );
+
+            const a = updateAsteroid(kids[0]);
+            const b = updateAsteroid(kids[1]);
+            const sepAfter = Math.hypot(a.x - b.x, a.y - b.y);
+
+            // Children diverge — separation must grow each tick
+            expect(sepAfter).toBeGreaterThan(initialSep);
+        }
+    });
+
+    // -----------------------------------------------------------------------
+    // T-06 follow-on: medium → 2 small children of correct tier/radius
+    // -----------------------------------------------------------------------
+    it("medium tier splits into 2 small children with SMALL_RADIUS", () => {
+        const rng = mulberry32(123);
+        const parent: AsteroidState = {
+            x: 100,
+            y: 100,
+            vx: 1,
+            vy: 0,
+            tier: "medium",
+            vertices: [],
+        };
+        const kids = splitAsteroid(parent, rng);
+        expect(kids).toHaveLength(2);
+        for (const k of kids) {
+            expect(k.tier).toBe("small");
+            expect(tierRadius(k.tier)).toBe(A.SMALL_RADIUS);
+        }
+    });
+});
+
 // Suppress the fixedRng unused warning (it is used in other potential tests)
 void fixedRng;

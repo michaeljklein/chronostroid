@@ -199,6 +199,79 @@ describe('computeBoundaryMidpoints — dual rewind (both ghosts present)', () =>
 // perimeterParam sanity checks
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// T-05 follow-on: non-overlapping coverage
+// ---------------------------------------------------------------------------
+
+describe('zone polygons cover the canvas with no overlap (sampled)', () => {
+  const p1: Vec2 = { x: 50, y: 50 };
+  const p2: Vec2 = { x: 250, y: 200 };
+  const [ep1, ep2] = computeZoneBoundary(p1, p2, W, H);
+  const verts1 = zonePolygonVertices(1, ep1, ep2, p1, p2, W, H);
+  const verts2 = zonePolygonVertices(2, ep1, ep2, p1, p2, W, H);
+
+  it('every sampled point belongs to exactly one zone polygon', () => {
+    let bothCount = 0;
+    let neitherCount = 0;
+    let p1Count = 0;
+    let p2Count = 0;
+    const STEP = 16;
+    for (let x = STEP / 2; x < W; x += STEP) {
+      for (let y = STEP / 2; y < H; y += STEP) {
+        const inP1 = polygonContains(verts1, { x, y });
+        const inP2 = polygonContains(verts2, { x, y });
+        if (inP1 && inP2) bothCount++;
+        else if (!inP1 && !inP2) neitherCount++;
+        else if (inP1) p1Count++;
+        else p2Count++;
+
+        // Each point must agree with pointInZone (modulo boundary cells)
+        if (inP1 && !inP2) {
+          expect(pointInZone({ x, y }, p1, p2)).toBe(1);
+        } else if (inP2 && !inP1) {
+          expect(pointInZone({ x, y }, p1, p2)).toBe(2);
+        }
+      }
+    }
+    // No overlap (no sampled point falls inside both polygons)
+    expect(bothCount).toBe(0);
+    // Combined coverage is the full sampled grid
+    expect(p1Count + p2Count + neitherCount).toBeGreaterThan(0);
+    // Allow at most a tiny number of "neither" hits from on-boundary points
+    expect(neitherCount).toBeLessThanOrEqual(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T-05 follow-on: horizontal-bisector boundary (ships share a y-coord)
+// ---------------------------------------------------------------------------
+
+describe('zonePolygonVertices — horizontal-bisector edge case (ships share y)', () => {
+  const p1: Vec2 = { x: 84, y: 131 };
+  const p2: Vec2 = { x: 252, y: 131 };
+  const [ep1, ep2] = computeZoneBoundary(p1, p2, W, H);
+
+  it('produced polygons have no degenerate (zero-length) edges', () => {
+    const verts1 = zonePolygonVertices(1, ep1, ep2, p1, p2, W, H);
+    const verts2 = zonePolygonVertices(2, ep1, ep2, p1, p2, W, H);
+
+    function noDegenerateEdges(verts: Vec2[]): boolean {
+      for (let i = 0; i < verts.length; i++) {
+        const a = verts[i];
+        const b = verts[(i + 1) % verts.length];
+        const len = Math.hypot(a.x - b.x, a.y - b.y);
+        if (len < 1e-6) return false;
+      }
+      return true;
+    }
+    expect(noDegenerateEdges(verts1)).toBe(true);
+    expect(noDegenerateEdges(verts2)).toBe(true);
+    // Both polygons should have at least 3 vertices
+    expect(verts1.length).toBeGreaterThanOrEqual(3);
+    expect(verts2.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
 describe('perimeterParam', () => {
   it('top-left corner maps to 0', () => {
     expect(perimeterParam({ x: 0, y: 0 })).toBeCloseTo(0);

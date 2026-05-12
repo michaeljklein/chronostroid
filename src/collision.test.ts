@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { resolveCollisions } from "./collision";
-import type { ZoneSnapshot } from "./collision";
+import type { CollisionSnapshot } from "./collision";
 import type { ShipState } from "./ship";
 import type { BulletState } from "./bullet";
 import type { AsteroidState } from "./asteroid";
@@ -49,7 +49,7 @@ describe("T-08 — Collision detection", () => {
         const bullet = makeBullet(0, 0);
         const asteroid = makeAsteroid(separation, 0, asteroidTier);
 
-        const snapshot: ZoneSnapshot = {
+        const snapshot: CollisionSnapshot = {
             zoneId: 1,
             ship: makeShip(200, 200),
             asteroids: [asteroid],
@@ -75,7 +75,7 @@ describe("T-08 — Collision detection", () => {
         const bullet = makeBullet(0, 0);
         const asteroid = makeAsteroid(separation, 0, asteroidTier);
 
-        const snapshot: ZoneSnapshot = {
+        const snapshot: CollisionSnapshot = {
             zoneId: 1,
             ship: makeShip(200, 200),
             asteroids: [asteroid],
@@ -103,7 +103,7 @@ describe("T-08 — Collision detection", () => {
         const bullet = makeBullet(50, 50);
         const liveShip = makeShip(200, 200, 7);
 
-        const snapshot: ZoneSnapshot = {
+        const snapshot: CollisionSnapshot = {
             zoneId: 1,
             ship: liveShip,
             ghostShip,
@@ -130,7 +130,7 @@ describe("T-08 — Collision detection", () => {
         const asteroid = makeAsteroid(50, 50, "small");
         const liveShip = makeShip(200, 200, 7);
 
-        const snapshot: ZoneSnapshot = {
+        const snapshot: CollisionSnapshot = {
             zoneId: 1,
             ship: liveShip,
             ghostShip,
@@ -160,7 +160,7 @@ describe("T-08 — Collision detection", () => {
         const separation = asteroidR + SHIP_RADIUS - 0.1;
         const asteroid = makeAsteroid(100 + separation, 100, asteroidTier);
 
-        const snapshot: ZoneSnapshot = {
+        const snapshot: CollisionSnapshot = {
             zoneId: 1,
             ship: liveShip,
             asteroids: [asteroid],
@@ -181,12 +181,85 @@ describe("T-08 — Collision detection", () => {
     //   aimed at asteroidX's position but asteroidX is NOT in P2's asteroid
     //   array. resolveCollisions on P2's snapshot must not touch asteroidX.
     // -----------------------------------------------------------------------
+    // -----------------------------------------------------------------------
+    // T-08 follow-on: same-tick multiple bullets on one asteroid
+    // -----------------------------------------------------------------------
+    it("two bullets aimed at one asteroid on the same tick: only the first consumes; second survives if no other target", () => {
+        const asteroid = makeAsteroid(0, 0, "large");
+        // Both bullets near the same asteroid (well within the threshold)
+        const b1 = makeBullet(0, 0, 1);
+        const b2 = makeBullet(0.5, 0, 1);
+
+        const snapshot: CollisionSnapshot = {
+            zoneId: 1,
+            ship: makeShip(500, 500),
+            asteroids: [asteroid],
+            bullets: [b1, b2],
+        };
+
+        const result = resolveCollisions(snapshot, rng);
+
+        // Original asteroid destroyed → 2 medium children added
+        const noOriginal = result.asteroids.every((a) => a.tier !== "large");
+        expect(noOriginal).toBe(true);
+        expect(result.asteroids).toHaveLength(2);
+
+        // First bullet consumed; the second bullet finds no remaining target
+        // (children were added this same tick but are not iterated in phase 1),
+        // so b2 survives.
+        expect(result.bullets).toHaveLength(1);
+        // The surviving bullet should be b2
+        expect(result.bullets[0]).toBe(b2);
+
+        // Exactly one bullet-hit-asteroid event
+        const hitEvents = result.events.filter((e) => e.kind === "bullet-hit-asteroid");
+        expect(hitEvents).toHaveLength(1);
+    });
+
+    // -----------------------------------------------------------------------
+    // T-08 follow-on: same-tick split children inert (not re-collided)
+    // -----------------------------------------------------------------------
+    it("split children produced this tick are not re-collided with another bullet on the same tick", () => {
+        // One bullet hits a large asteroid (producing 2 medium children).
+        // Another bullet positioned where a child *would* end up after the split
+        // (near the parent center). That second bullet must NOT consume any child
+        // on the same tick — children are inert this tick.
+        const asteroid = makeAsteroid(0, 0, "large");
+        const b1 = makeBullet(0, 0, 1); // hits the large asteroid
+        // A second bullet sitting nearby but far from the (now-removed) parent slot.
+        // To prove children are inert, we'd want a child to be near b2. Children's
+        // initial centers are at ±perpX*offset (perpendicular to parent velocity).
+        // Parent vx=0,vy=0 → speed=0, so perpX=0, perpY=1 → children at (0, ±14).
+        // Place b2 right at (0, 14): this is exactly on top of one of the new
+        // children. If children were iterated this tick, b2 would consume one.
+        const b2 = makeBullet(0, 14, 1);
+
+        const snapshot: CollisionSnapshot = {
+            zoneId: 1,
+            ship: makeShip(500, 500),
+            asteroids: [asteroid],
+            bullets: [b1, b2],
+        };
+
+        const result = resolveCollisions(snapshot, rng);
+
+        // The large parent was destroyed → 2 medium children present
+        expect(result.asteroids).toHaveLength(2);
+        // b2 still alive — it was not consumed by either child this tick
+        expect(result.bullets).toHaveLength(1);
+        expect(result.bullets[0]).toBe(b2);
+
+        // Only one bullet-hit-asteroid event (b1 → parent)
+        const hitEvents = result.events.filter((e) => e.kind === "bullet-hit-asteroid");
+        expect(hitEvents).toHaveLength(1);
+    });
+
     it("cross-zone isolation: bullet in P2 zone does not affect asteroidX in P1 zone", () => {
         // asteroidX belongs to P1's zone
         const asteroidX = makeAsteroid(150, 130, "large");
 
         // P1 snapshot contains asteroidX
-        const p1Snapshot: ZoneSnapshot = {
+        const p1Snapshot: CollisionSnapshot = {
             zoneId: 1,
             ship: makeShip(84, 131),
             asteroids: [asteroidX],
@@ -196,7 +269,7 @@ describe("T-08 — Collision detection", () => {
         // P2 snapshot has a bullet aimed exactly at asteroidX's position,
         // but asteroidX is NOT in p2Snapshot.asteroids
         const bulletAtAsteroidX = makeBullet(asteroidX.x, asteroidX.y, 2);
-        const p2Snapshot: ZoneSnapshot = {
+        const p2Snapshot: CollisionSnapshot = {
             zoneId: 2,
             ship: makeShip(252, 131),
             asteroids: [], // asteroidX is absent here

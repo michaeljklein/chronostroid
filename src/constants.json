@@ -23,6 +23,7 @@
     "FLANK_DIST": 6,
     "FLANK_ANGLE": 150,
     "GHOST_ALPHA": 128,
+    "LIVE_FADED_ALPHA": 180,
     "START_P1_X": 84,
     "START_P1_Y": 131,
     "START_P2_X": 252,
@@ -38,10 +39,10 @@
     "RADIUS": 2
   },
   "ASTEROID": {
-    "POOL_SIZE": 4,
-    "LARGE_RADIUS": 28,
-    "MEDIUM_RADIUS": 16,
-    "SMALL_RADIUS": 8,
+    "POOL_SIZE": 2,
+    "LARGE_RADIUS": 14,
+    "MEDIUM_RADIUS": 8,
+    "SMALL_RADIUS": 4,
     "SPEED_MIN": 0.5,
     "SPEED_MAX": 1.5,
     "SPAWN_ANGLE_SPREAD": 30,

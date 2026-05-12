@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { createShip, updateShip } from "./ship";
+import { createShip, updateShip, drawShip } from "./ship";
+import type p5 from "p5";
 import CONSTANTS from "./constants.json";
 
 // A no-op boundary that is degenerate (selfX === otherX, selfY === otherY) → clamping skipped.
@@ -73,6 +74,97 @@ describe("Ship entity (T-03)", () => {
         state = updateShip(state, bothRotate, NO_BOUNDARY);
 
         expect(state.angle).toBe(initialAngle);
+    });
+
+    it("y-axis canvas wrap: ship at y=-1 wraps to y=CANVAS.HEIGHT-1 and y=CANVAS.HEIGHT wraps to 0", () => {
+        // First case: ship at y=0 moving up with vy=-1 → y becomes -1 → wraps to HEIGHT-1
+        let state = createShip(100, 0, 0, CONSTANTS.HP.INITIAL);
+        state = { ...state, vx: 0, vy: -1 };
+        state = updateShip(state, noInput, NO_BOUNDARY);
+        expect(state.y).toBeCloseTo(CONSTANTS.CANVAS.HEIGHT - 1, 10);
+
+        // Second case: ship at y=HEIGHT-1 moving down with vy=1 → y becomes HEIGHT → wraps to 0
+        let state2 = createShip(100, CONSTANTS.CANVAS.HEIGHT - 1, 0, CONSTANTS.HP.INITIAL);
+        state2 = { ...state2, vx: 0, vy: 1 };
+        state2 = updateShip(state2, noInput, NO_BOUNDARY);
+        // y was HEIGHT-1, vy=1 → y becomes HEIGHT (>= HEIGHT) → wraps to 0
+        expect(state2.y).toBeCloseTo(0, 10);
+    });
+
+    it("drawShip plumbs the alpha parameter through to fill color", () => {
+        // Minimal p5 mock recording fill calls (and color construction)
+        const fillCalls: unknown[][] = [];
+        const colorArgs: unknown[][] = [];
+        const mock = {
+            push: () => {},
+            pop: () => {},
+            translate: () => {},
+            rotate: () => {},
+            beginShape: () => {},
+            endShape: () => {},
+            vertex: () => {},
+            noStroke: () => {},
+            stroke: () => {},
+            noFill: () => {},
+            line: () => {},
+            triangle: () => {},
+            CLOSE: "CLOSE",
+            color: (...args: unknown[]) => {
+                colorArgs.push(args);
+                // Return a tagged object as the resulting color
+                return { _color: args } as unknown;
+            },
+            fill: (...args: unknown[]) => {
+                fillCalls.push(args);
+            },
+            red: () => 255,
+            green: () => 0,
+            blue: () => 0,
+        } as unknown as p5;
+
+        const state = createShip(50, 50, 0, CONSTANTS.HP.INITIAL);
+        const fakeColor = {} as unknown as p5.Color;
+        const customAlpha = 77;
+        drawShip(mock, state, fakeColor, customAlpha);
+
+        // Verify the color builder was called with our alpha as the last arg
+        expect(colorArgs.length).toBeGreaterThan(0);
+        const args = colorArgs[0];
+        expect(args[args.length - 1]).toBe(customAlpha);
+    });
+
+    it("drawShip default alpha is 255 (opaque) when omitted", () => {
+        const colorArgs: unknown[][] = [];
+        const mock = {
+            push: () => {},
+            pop: () => {},
+            beginShape: () => {},
+            endShape: () => {},
+            vertex: () => {},
+            noStroke: () => {},
+            stroke: () => {},
+            noFill: () => {},
+            line: () => {},
+            triangle: () => {},
+            translate: () => {},
+            rotate: () => {},
+            CLOSE: "CLOSE",
+            color: (...args: unknown[]) => {
+                colorArgs.push(args);
+                return {} as unknown;
+            },
+            fill: () => {},
+            red: () => 0,
+            green: () => 0,
+            blue: () => 255,
+        } as unknown as p5;
+
+        const state = createShip(50, 50, 0, CONSTANTS.HP.INITIAL);
+        drawShip(mock, state, {} as unknown as p5.Color);
+
+        expect(colorArgs.length).toBeGreaterThan(0);
+        const args = colorArgs[0];
+        expect(args[args.length - 1]).toBe(255);
     });
 
     it("boundary clamp: crossed ship repositioned to boundary; perpendicular velocity zeroed; tangential unchanged", () => {

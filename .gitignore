@@ -24,3 +24,8 @@ dist-ssr
 *.sw?
 
 .claude/
+
+# Playwright MCP artifacts
+.playwright-mcp/
+lobby.png
+playing.png

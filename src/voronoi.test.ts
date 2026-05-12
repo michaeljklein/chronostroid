@@ -71,6 +71,35 @@ describe('voronoi', () => {
     expect(onEdge(ep2)).toBe(true);
   });
 
+  // Horizontal-bisector edge case: two ships with same y → vertical bisector at x = midX
+  it('two ships with same y-coordinate produce a vertical bisector', () => {
+    const p1: Vec2 = { x: 100, y: 131 };
+    const p2: Vec2 = { x: 220, y: 131 };
+    const midX = (p1.x + p2.x) / 2;
+
+    const [ep1, ep2] = computeZoneBoundary(p1, p2, W, H);
+
+    // Both endpoints share the same x (vertical line at midX)
+    expect(ep1.x).toBeCloseTo(midX, 9);
+    expect(ep2.x).toBeCloseTo(midX, 9);
+    // y values span the canvas height
+    const ys = [ep1.y, ep2.y].sort((a, b) => a - b);
+    expect(ys[0]).toBeCloseTo(0, 9);
+    expect(ys[1]).toBeCloseTo(H, 9);
+  });
+
+  // Tie at midpoint: a point exactly equidistant from p1 and p2 resolves to zone 1
+  it('point exactly on the bisector (midpoint) consistently belongs to zone 1', () => {
+    const p1: Vec2 = { x: 100, y: 100 };
+    const p2: Vec2 = { x: 200, y: 100 };
+    const mid: Vec2 = { x: 150, y: 100 };
+    expect(pointInZone(mid, p1, p2)).toBe(1);
+
+    // A different equidistant point (offset perpendicular from midpoint)
+    const mid2: Vec2 = { x: 150, y: 50 };
+    expect(pointInZone(mid2, p1, p2)).toBe(1);
+  });
+
   // Test 5 — Midpoint of the two boundary endpoints is equidistant from both ships.
   it('midpoint of boundary endpoints is equidistant from both ships', () => {
     const p1: Vec2 = { x: 84, y: 100 };

@@ -11,7 +11,7 @@ const SHIP_RADIUS = CONSTANTS.SHIP.COLLISION_RADIUS;
 // Public types
 // ---------------------------------------------------------------------------
 
-export type ZoneSnapshot = {
+export type CollisionSnapshot = {
     zoneId: 1 | 2;
     ship: ShipState;
     ghostShip?: ShipState;
@@ -56,7 +56,7 @@ function dist(ax: number, ay: number, bx: number, by: number): number {
  *   3. Asteroid vs ships (live then ghost)
  */
 export function resolveCollisions(
-    snapshot: ZoneSnapshot,
+    snapshot: CollisionSnapshot,
     rng: () => number
 ): CollisionResult {
     const events: CollisionEvent[] = [];

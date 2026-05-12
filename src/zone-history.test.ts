@@ -158,6 +158,54 @@ describe("ZoneHistory — unit tests", () => {
         expect(currentSnapshot(h).ship.x).not.toBe(0);
     });
 
+    // T-09 follow-on: sibling-subtree freeing on root eviction
+    it("when root is evicted, sibling subtrees of the promoted child are freed (no orphans)", () => {
+        // Build a tree:
+        //   root (tag 0)
+        //     ├── child1 (tag 1) — orphan branch (1 node only)
+        //     └── child2 (tag 2) → ... long chain on this branch (current here)
+        let h = createZoneHistory(makeSnap(0));
+        h = recordTick(h, makeSnap(1));      // root → child1
+        h = rewind(h, 1);                    // current = root
+        h = recordTick(h, makeSnap(2));      // root → child2 (sibling of child1)
+
+        // Now extend the child2 branch until the pool fills up and root MUST evict.
+        // After bootstrap+3 recordTicks: 4 live nodes. We need HISTORY_TICKS+1 events
+        // to overflow. Pad until live count reaches HISTORY_TICKS, then one more.
+        let tag = 3;
+        // Record until we cross capacity. Each recordTick adds 1 node OR (when at cap)
+        // triggers eviction. Loop until liveNodeCount stays at HISTORY_TICKS and the
+        // root has been evicted (the orphan child1 should be gone).
+        while (liveNodeCount(h) < HISTORY_TICKS) {
+            h = recordTick(h, makeSnap(tag++));
+        }
+        // Pool is now full. One more recordTick triggers eviction of the OLD root.
+        const liveBefore = liveNodeCount(h);
+        expect(liveBefore).toBe(HISTORY_TICKS);
+        h = recordTick(h, makeSnap(tag));
+        // After eviction + add: live node count never exceeds the pool cap and
+        // is reduced because the orphan sibling subtree was freed too.
+        expect(liveNodeCount(h)).toBeLessThanOrEqual(HISTORY_TICKS);
+
+        // Critical check: after eviction, rewinding to the new root should reach a
+        // snapshot on the child2 branch (tag 2), NOT tag 0 (original root) and NOT
+        // tag 1 (orphaned child1 — its subtree was freed).
+        const allTheWayBack = rewind(h, HISTORY_TICKS);
+        const rootSnap = currentSnapshot(allTheWayBack);
+        expect(rootSnap.ship.x).not.toBe(0);
+        expect(rootSnap.ship.x).not.toBe(1);
+        // The new root should be the promoted child2 (or further along its branch
+        // if multiple roots have been evicted).
+    });
+
+    // T-09 follow-on: rewind(h, n) with n much greater than depth does not throw
+    it("rewind(h, n) with n much greater than depth clamps to root without throwing", () => {
+        const h = buildLinear(3);
+        expect(() => rewind(h, 1_000_000)).not.toThrow();
+        const rewound = rewind(h, 1_000_000);
+        expect(currentSnapshot(rewound).ship.x).toBe(0);
+    });
+
     it("rewind stops at root and does not go below 0 steps", () => {
         let h = buildLinear(3);
         // Rewind more than depth

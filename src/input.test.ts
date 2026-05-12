@@ -200,6 +200,30 @@ describe("input — state gating (selectSystemInput)", () => {
         expect(sys).toBeNull();
     });
 
+    it("spinner deltas flow through readFrame to per-player input objects unchanged", () => {
+        let inputState = createInputState();
+        mockSpinState.spin1 = 7;
+        mockSpinState.spin2 = -3;
+
+        const { input, state } = readFrame(inputState);
+        expect(input.p1.spinnerDelta).toBe(7);
+        expect(input.p2.spinnerDelta).toBe(-3);
+        inputState = state;
+
+        // Next frame: consume_step_delta was called once, so the source should reset
+        // to 0. Subsequent readFrame returns 0 for both.
+        const { input: input2 } = readFrame(inputState);
+        expect(input2.p1.spinnerDelta).toBe(0);
+        expect(input2.p2.spinnerDelta).toBe(0);
+
+        // Setting fresh spinner values flows through again
+        mockSpinState.spin1 = -12;
+        mockSpinState.spin2 = 4;
+        const { input: input3 } = readFrame(inputState);
+        expect(input3.p1.spinnerDelta).toBe(-12);
+        expect(input3.p2.spinnerDelta).toBe(4);
+    });
+
     it("selectSystemInput returns system input in LOBBY and GAME_OVER", () => {
         const lobby: GameState = createGameState(); // "LOBBY"
         mockSystem.ONE_PLAYER = true;

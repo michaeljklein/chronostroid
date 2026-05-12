@@ -158,6 +158,55 @@ describe("T-10 Spinner time-travel controller", () => {
         expect(midpoints1.ghost!.x).not.toBe(midpoints2.ghost!.x);
     });
 
+    // T-10 follow-on: after fast-forwarding past the frontier, inTimeTravel === false
+    it("after fast-forwarding past the frontier, inTimeTravel becomes false", () => {
+        const state = buildStateWithHistory(100);
+        // Enter time travel by rewinding deeply
+        const { state: rewoundState } = tickTimeTravel(state, -5);
+        expect(rewoundState.inTimeTravel).toBe(true);
+
+        // Fast-forward way past the frontier (large positive delta)
+        const { state: fwdState } = tickTimeTravel(rewoundState, 999);
+        expect(fwdState.inTimeTravel).toBe(false);
+    });
+
+    // T-10 follow-on: boost magnitude capped at MAX_BOOST_SPEED
+    it("FF boost magnitude is capped at REWIND.MAX_BOOST_SPEED", () => {
+        const state = buildStateWithHistory(200);
+        // Rewind far first
+        const { state: rewoundState } = tickTimeTravel(state, -10);
+        expect(rewoundState.inTimeTravel).toBe(true);
+
+        // Fast-forward enough to reach frontier; with a huge delta the raw
+        // boost magnitude FF_BOOST_SCALE * (ticks / TICKS_PER_SPIN) far exceeds
+        // the cap, so the returned magnitude must equal MAX_BOOST_SPEED.
+        const { boost } = tickTimeTravel(rewoundState, 999);
+        expect(boost).not.toBeNull();
+        const mag = Math.hypot(boost!.x, boost!.y);
+        expect(mag).toBeLessThanOrEqual(CONSTANTS.REWIND.MAX_BOOST_SPEED + 1e-9);
+        // And we expect it to actually hit the cap with such a large delta.
+        expect(mag).toBeCloseTo(CONSTANTS.REWIND.MAX_BOOST_SPEED, 6);
+    });
+
+    // T-10 follow-on: recordPresent while inTimeTravel === true is a no-op
+    it("recordPresent while inTimeTravel === true is a no-op (history unchanged)", () => {
+        const state = buildStateWithHistory(50);
+        const { state: rewoundState } = tickTimeTravel(state, -1);
+        expect(rewoundState.inTimeTravel).toBe(true);
+
+        const historyBefore = rewoundState.history;
+        const currentBefore = currentSnapshot(rewoundState.history);
+
+        const afterRecord = recordPresent(rewoundState, makeSnapshot(999, 999));
+
+        // History reference should be unchanged
+        expect(afterRecord.history).toBe(historyBefore);
+        // Current snapshot is the same reference
+        expect(currentSnapshot(afterRecord.history)).toBe(currentBefore);
+        // lastPresentSnapshot should not have been overwritten with the new snapshot
+        expect(afterRecord.lastPresentSnapshot).toBe(rewoundState.lastPresentSnapshot);
+    });
+
     // Bonus: Dual-rewind — when both zones are rewound, opponentGhostOrPresent = otherGhost
     it("dual-rewind: solid boundary uses otherGhost when both zones are rewound", () => {
         const selfLastPresent = { x: 50, y: 100 };

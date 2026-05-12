@@ -129,6 +129,27 @@ describe("Bullet system", () => {
         expect(advanced.active).toHaveLength(0);
     });
 
+    it("cooldown decrements every tick regardless of whether the player holds fire", () => {
+        // Start with a manually-set cooldown high enough that holding fire still cannot fire
+        // (because cooldown > 0). With NOT holding fire, cooldown must also decrement.
+        const startCooldown = CONSTANTS.BULLET.COOLDOWN;
+
+        // Case A: bHeld = false
+        let stateA: BulletFiringState = { cooldown: startCooldown, active: [] };
+        for (let i = 1; i <= 5; i++) {
+            stateA = tickBullets(stateA, false, DEFAULT_SHIP, 1);
+            expect(stateA.cooldown).toBe(startCooldown - i);
+        }
+
+        // Case B: bHeld = true. With pre-existing cooldown, tryFire is a no-op,
+        // so the cooldown should still decrement by 1 each tick.
+        let stateB: BulletFiringState = { cooldown: startCooldown, active: [] };
+        for (let i = 1; i <= 5; i++) {
+            stateB = tickBullets(stateB, true, DEFAULT_SHIP, 1);
+            expect(stateB.cooldown).toBe(startCooldown - i);
+        }
+    });
+
     it("holding B with cooldown 0: fires exactly once per BULLET.COOLDOWN ticks", () => {
         // Start fresh with cooldown = 0
         let state = createBulletFiringState();

@@ -103,6 +103,33 @@ describe('canTimeTravel', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// T-11 follow-on: regen and deduction are mutually exclusive per frame
+// ---------------------------------------------------------------------------
+
+describe('regen and deduction are mutually exclusive per frame', () => {
+  it('spinner ticks > 0 → energy strictly decreases; ticks === 0 → energy increases (until MAX)', () => {
+    // Start partway down so regen is observable
+    const start = ENERGY.MAX / 2;
+
+    // Deduction case: spinner ticks > 0 → must decrease
+    let s1 = { value: start };
+    s1 = tickEnergy(s1, 5);
+    expect(s1.value).toBeLessThan(start);
+    // Specifically: equals start - 5 * COST_PER_TICK
+    expect(s1.value).toBe(start - 5 * ENERGY.COST_PER_TICK);
+
+    // Regen case: spinner ticks === 0 → must increase
+    let s2 = { value: start };
+    s2 = tickEnergy(s2, 0);
+    expect(s2.value).toBeGreaterThan(start);
+    expect(s2.value).toBe(start + ENERGY.REGEN_PER_TICK);
+
+    // Never both at once: same value cannot both regen AND deduct in one call
+    // (by construction the two branches are mutually exclusive in tickEnergy).
+  });
+});
+
 describe('energyFraction', () => {
   it('returns 1 when full', () => {
     expect(energyFraction(createEnergy())).toBe(1);
