@@ -1,0 +1,22 @@
+{
+  "$schema": "https://rcade.dev/manifest.schema.json",
+  "name": "chronostroid",
+  "display_name": "Chronostroid",
+  "description": "PvP Asteroid + time travel",
+  "visibility": "public",
+  "authors": [
+    {
+      "display_name": "Michael J. Klein"
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "@rcade/input-classic",
+      "version": "1.0.0"
+    },
+    {
+      "name": "@rcade/input-spinners",
+      "version": "1.0.0"
+    }
+  ]
+}

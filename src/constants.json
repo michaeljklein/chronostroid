@@ -1,0 +1,61 @@
+{
+  "CANVAS": {
+    "WIDTH": 336,
+    "HEIGHT": 262,
+    "HUD_FONT_SIZE": 8,
+    "HUD_STRIP_HEIGHT": 14,
+    "ZONE_TINT_ALPHA": 30,
+    "BOUNDARY_DASH": 6,
+    "BOUNDARY_GAP": 4
+  },
+  "SHIP": {
+    "ROTATION_SPEED": 3,
+    "THRUST_ACCEL": 0.1,
+    "MAX_SPEED": 4,
+    "DRAG_FACTOR": 0.95,
+    "COLLISION_RADIUS": 8,
+    "NOSE_DIST": 16,
+    "FLANK_DIST": 6,
+    "FLANK_ANGLE": 150,
+    "GHOST_ALPHA": 128,
+    "START_P1_X": 84,
+    "START_P1_Y": 131,
+    "START_P2_X": 252,
+    "START_P2_Y": 131,
+    "START_ANGLE_P1": 0,
+    "START_ANGLE_P2": 180
+  },
+  "BULLET": {
+    "SPEED": 6,
+    "LIFETIME": 60,
+    "COOLDOWN": 20,
+    "MAX_COUNT": 3,
+    "RADIUS": 2
+  },
+  "ASTEROID": {
+    "POOL_SIZE": 4,
+    "LARGE_RADIUS": 28,
+    "MEDIUM_RADIUS": 16,
+    "SMALL_RADIUS": 8,
+    "SPEED_MIN": 0.5,
+    "SPEED_MAX": 1.5,
+    "SPAWN_ANGLE_SPREAD": 30,
+    "SPLIT_OFFSET_FRACTION": 0.5,
+    "SPLIT_DIVERGE_ANGLE": 20,
+    "SPLIT_RANDOM_SPREAD": 5
+  },
+  "REWIND": {
+    "HISTORY_TICKS": 3600,
+    "TICKS_PER_SPIN": 12,
+    "MAX_BOOST_SPEED": 8,
+    "FF_BOOST_SCALE": 2
+  },
+  "ENERGY": {
+    "MAX": 3600,
+    "COST_PER_TICK": 1,
+    "REGEN_PER_TICK": 0.5
+  },
+  "HP": {
+    "INITIAL": 10
+  }
+}
