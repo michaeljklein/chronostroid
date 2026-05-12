@@ -62,6 +62,7 @@ import {
     playHeal,
     type AudioState,
 } from "./audio-runtime";
+import { applyScrubHp, detectHeal } from "./scrub";
 
 type ZoneRuntime = {
     zoneId: 1 | 2;
@@ -355,20 +356,13 @@ function tickPlayingFrame(
     refillLarges(zone1, p1Now, p2Now, rng);
     refillLarges(zone2, p1Now, p2Now, rng);
 
-    // 8. HP scrubbing (T-17): while a zone is in TT, the live ship's HP is the
-    //    visible snapshot's HP. Rewinding past a hit restores it; FF re-applies
-    //    it; at frontier the snapshot HP equals live HP, so this is a no-op.
-    if (zone1.tt.inTimeTravel) {
-        zone1.ship = { ...zone1.ship, hp: zone1.visible.ship.hp };
-    }
-    if (zone2.tt.inTimeTravel) {
-        zone2.ship = { ...zone2.ship, hp: zone2.visible.ship.hp };
-    }
+    // 8. HP scrubbing (T-17).
+    zone1.ship = applyScrubHp(zone1.ship, zone1.visible.ship.hp, zone1.tt.inTimeTravel);
+    zone2.ship = applyScrubHp(zone2.ship, zone2.visible.ship.hp, zone2.tt.inTimeTravel);
 
-    // 9. Heal-event audio: if the visible snapshot's HP rose vs. last frame,
-    //    that's the player rewinding across a hit. Fire one heal cue.
-    if (zone1.visible.ship.hp > zone1.prevVisibleHp) play(playHeal);
-    if (zone2.visible.ship.hp > zone2.prevVisibleHp) play(playHeal);
+    // 9. Heal-event audio: positive HP delta in this player's visible snapshot.
+    if (detectHeal(zone1.prevVisibleHp, zone1.visible.ship.hp)) play(playHeal);
+    if (detectHeal(zone2.prevVisibleHp, zone2.visible.ship.hp)) play(playHeal);
     zone1.prevVisibleHp = zone1.visible.ship.hp;
     zone2.prevVisibleHp = zone2.visible.ship.hp;
 
