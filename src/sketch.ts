@@ -54,6 +54,14 @@ import {
 import { pointInZone, type Vec2 } from "./voronoi";
 import { drawHud, type HudPlayerData } from "./hud";
 import type { ZoneSnapshot } from "./zone-history";
+import {
+    loadAudio,
+    playLaser,
+    playExplosion,
+    playShipDamage,
+    playHeal,
+    type AudioState,
+} from "./audio-runtime";
 
 type ZoneRuntime = {
     zoneId: 1 | 2;
@@ -67,6 +75,8 @@ type ZoneRuntime = {
     presentTick: number;
     /** Ticks behind the frontier — 0 when at present, positive during rewind. */
     scrubOffset: number;
+    /** Visible-snapshot HP recorded on the previous frame, for heal-event detection. */
+    prevVisibleHp: number;
 };
 
 function makeRng(): () => number {
@@ -131,6 +141,7 @@ function initZone(zoneId: 1 | 2, p1Pos: Vec2, p2Pos: Vec2, rng: () => number): Z
         visible: initialSnapshot,
         presentTick: 0,
         scrubOffset: 0,
+        prevVisibleHp: ship.hp,
     };
 }
 
@@ -169,6 +180,7 @@ const sketch = (p: p5) => {
     let gameState: GameState = createGameState();
     let zone1: ZoneRuntime | null = null;
     let zone2: ZoneRuntime | null = null;
+    let audio: AudioState | null = null;
     const rng = makeRng();
 
     p.setup = () => {
@@ -176,6 +188,7 @@ const sketch = (p: p5) => {
         p.frameRate(60);
         p.textFont("monospace");
         p.noSmooth();
+        audio = loadAudio(p);
     };
 
     p.draw = () => {
@@ -227,7 +240,7 @@ const sketch = (p: p5) => {
         const players = selectPlayerInput(gameState, frameInput);
         if (players.p1 === null || players.p2 === null) return;
 
-        tickPlayingFrame(zone1, zone2, players.p1, players.p2, rng);
+        audio = tickPlayingFrame(zone1, zone2, players.p1, players.p2, rng, audio);
         gameState = tickPlaying(gameState, zone1.ship.hp, zone2.ship.hp);
 
         drawField(p, zone1, zone2);
@@ -250,7 +263,12 @@ function tickPlayingFrame(
     p1Input: PlayerInput,
     p2Input: PlayerInput,
     rng: () => number,
-): void {
+    audio: AudioState | null,
+): AudioState | null {
+    let audioState = audio;
+    function play(fn: (s: AudioState) => AudioState): void {
+        if (audioState !== null) audioState = fn(audioState);
+    }
     // 1. Resolve time-travel for each zone using live spinner deltas.
     const tt1 = tickTimeTravel(zone1.tt, p1Input.spinnerDelta);
     const tt2 = tickTimeTravel(zone2.tt, p2Input.spinnerDelta);
@@ -277,9 +295,15 @@ function tickPlayingFrame(
         zone2.ship = { ...zone2.ship, vx: zone2.ship.vx + tt2.boost.x, vy: zone2.ship.vy + tt2.boost.y };
     }
 
-    // 3. Update bullets per player.
+    // 3. Update bullets per player. Detect new spawns by active-count delta
+    //    against the same player's pre-tick active list.
+    const z1BulletsBefore = zone1.bullets.active.length;
+    const z2BulletsBefore = zone2.bullets.active.length;
     zone1.bullets = tickBullets(zone1.bullets, p1Input.fire, zone1.ship, 1);
     zone2.bullets = tickBullets(zone2.bullets, p2Input.fire, zone2.ship, 2);
+    // A fresh spawn means active.length grew; surviving bullets only stay or shrink.
+    if (zone1.bullets.active.length > z1BulletsBefore) play(playLaser);
+    if (zone2.bullets.active.length > z2BulletsBefore) play(playLaser);
 
     // 4. Update asteroids in each zone's pool.
     zone1.asteroids = zone1.asteroids.map(updateAsteroid);
@@ -312,6 +336,7 @@ function tickPlayingFrame(
     zone1.ship = col1.ship;
     zone1.asteroids = col1.asteroids;
     zone1.bullets = { ...zone1.bullets, active: col1.bullets };
+    emitCollisionAudio(col1.events, play);
 
     const snap2: CollisionSnapshot = {
         zoneId: 2,
@@ -324,12 +349,30 @@ function tickPlayingFrame(
     zone2.ship = col2.ship;
     zone2.asteroids = col2.asteroids;
     zone2.bullets = { ...zone2.bullets, active: col2.bullets };
+    emitCollisionAudio(col2.events, play);
 
     // 7. Refill destroyed large asteroids per zone.
     refillLarges(zone1, p1Now, p2Now, rng);
     refillLarges(zone2, p1Now, p2Now, rng);
 
-    // 8. Record present snapshot for zones at the frontier.
+    // 8. HP scrubbing (T-17): while a zone is in TT, the live ship's HP is the
+    //    visible snapshot's HP. Rewinding past a hit restores it; FF re-applies
+    //    it; at frontier the snapshot HP equals live HP, so this is a no-op.
+    if (zone1.tt.inTimeTravel) {
+        zone1.ship = { ...zone1.ship, hp: zone1.visible.ship.hp };
+    }
+    if (zone2.tt.inTimeTravel) {
+        zone2.ship = { ...zone2.ship, hp: zone2.visible.ship.hp };
+    }
+
+    // 9. Heal-event audio: if the visible snapshot's HP rose vs. last frame,
+    //    that's the player rewinding across a hit. Fire one heal cue.
+    if (zone1.visible.ship.hp > zone1.prevVisibleHp) play(playHeal);
+    if (zone2.visible.ship.hp > zone2.prevVisibleHp) play(playHeal);
+    zone1.prevVisibleHp = zone1.visible.ship.hp;
+    zone2.prevVisibleHp = zone2.visible.ship.hp;
+
+    // 10. Record present snapshot for zones at the frontier.
     if (!zone1.tt.inTimeTravel) {
         zone1.tt = recordPresent(zone1.tt, freshSnapshot(zone1));
         zone1.presentTick++;
@@ -337,6 +380,21 @@ function tickPlayingFrame(
     if (!zone2.tt.inTimeTravel) {
         zone2.tt = recordPresent(zone2.tt, freshSnapshot(zone2));
         zone2.presentTick++;
+    }
+
+    return audioState;
+}
+
+function emitCollisionAudio(
+    events: ReadonlyArray<{ kind: string }>,
+    play: (fn: (s: AudioState) => AudioState) => void,
+): void {
+    for (const ev of events) {
+        if (ev.kind === "bullet-hit-asteroid") {
+            play(playExplosion);
+        } else if (ev.kind === "bullet-hit-ship" || ev.kind === "asteroid-hit-ship") {
+            play(playShipDamage);
+        }
     }
 }
 

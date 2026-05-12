@@ -26,19 +26,9 @@ This item was brought into the initial prototype during the D-INTERVIEW-1 design
 
 ---
 
-## FW-5 — True HP scrubbing during time travel
+## ~~FW-5 — True HP scrubbing during time travel~~ *(promoted to v1 scope, 2026-05-12 — see T-17)*
 
-- **Concept**: When a zone is in time travel, the rewound state should include HP — i.e., rewinding past a hit should restore the lost HP, matching the original "Vim-style undo tree on game state" spec. Today the implementation always advances live state (ship/HP) underneath the TT overlay; only the visual snapshot rewinds, so taking damage during TT persists when scrubbing.
-- **Why deferred**: Full HP scrubbing pulls in branching-timeline semantics. When the player rewinds past a hit, then resumes play forward, the future has diverged from what already happened — the opponent's bullets/asteroids that hit at that tick now miss (or vice versa). Resolving collisions consistently across two players' independent timelines is a real design problem (and may need a multi-snapshot "commit on FF" model where live state is replaced by the rewound state on TT exit). Out of scope for the v1 prototype.
-- **Open questions**:
-  - On TT exit at frontier, does live HP snap back to whatever the rewound timeline says — or does damage taken during TT still count?
-  - If two players are both in TT and both damage each other on diverging timelines, whose timeline "wins"?
-  - Does scrubbing also restore destroyed asteroids? Bullets in flight?
-- **Revisit when**: Playtesting shows the v1 "TT-as-overlay" model breaks the strategic intent of time travel (e.g., players ignore TT because it doesn't undo damage).
-- **Acceptance criteria**:
-  - Rewinding past a hit restores the lost HP visually and mechanically.
-  - Exiting TT at frontier preserves the branched timeline coherently.
-  - Tests for the chosen exit-commit semantics.
+User clarified that healing-via-rewind is the intended core mechanic. Promoted as T-17 with the simpler "live HP = visible snapshot HP each TT frame" semantic; deeper branching-timeline semantics may revisit later.
 
 ---
 
