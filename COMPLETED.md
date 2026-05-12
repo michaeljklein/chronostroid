@@ -4,6 +4,57 @@ Finished TODO items moved **verbatim** from `TODO.md` per the TODO↔COMPLETED c
 
 ---
 
+## T-18 — Voronoi-rewind (display-position bisector) *(2026-05-12)*
+
+- **Deps**: T-15, T-17.
+- **Locked spec (2026-05-12 interview)**:
+  - Single-TT bisector source: own ghost vs. opp live.
+  - Both-TT bisector source: bisector(P1 ghost, P2 ghost).
+  - Asteroid handover (outbound: yours → opp's zone via bisector shift): becomes opp's live asteroid; despawns after one hit. Damage stays at 1 (the existing minimum).
+  - Asteroid handover (inbound: opp's → your TT zone): stays live in your zone; can damage your live ship.
+  - Energy: tied to existing rewind tick cost, no surcharge.
+  - Damage from summoned asteroids is scrubbable normally (T-17 applies).
+  - Render: solid boundary = bisector(live, live); dashed = bisector(display, display) only when at least one zone is in TT.
+- **Acceptance**:
+  - `src/scrub.ts::displayPosition(live, ghost, inTimeTravel)` selects which position drives the bisector partition. Live ship clamp still uses live positions.
+  - `src/sketch.ts` cross-zone partition (asteroids + bullets) and refill use the display bisector.
+  - `drawField` draws solid + dashed boundaries; zone tints follow display.
+  - Tests: single-TT swap, both-TT both-ghost swap, identity branches.
+
+---
+
+## T-17 — HP scrubbing during time travel (heal mechanic) *(2026-05-12)*
+
+- **Promoted from**: FW-5 (heal-via-rewind clarification from user).
+- **Locked spec (2026-05-12)**:
+  - While a zone is in TT, the live ship's HP is **overwritten each frame** from `visibleSnapshot.ship.hp`. Rewinding past a hit restores HP; FF re-applies it; frontier is a no-op.
+  - Side effect: new damage during TT is overwritten the next frame (ghost is effectively invulnerable until exit). Acceptable for v1.
+  - Heal event for audio: per zone, compare current frame's visible-snapshot HP to previous frame's; if it rose, play one heal sample.
+- **Acceptance**:
+  - `src/scrub.ts::applyScrubHp` pure helper; `tickPlayingFrame` applies it after TT resolution.
+  - `detectHeal(prev, current)` fires the heal SFX on positive snapshot delta.
+  - Integration test drives a damage → rewind → FF → frontier cycle through the real time-travel module and asserts scrubbed HP follows the snapshot.
+
+---
+
+## T-15 — In-game audio (CC0 sci-fi sample set) *(2026-05-12)*
+
+- **Source set**: `https://github.com/lavenderdotpet/CC0-Public-Domain-Sounds/tree/main/50-cc0-sci-fi-sfx` (CC0 / public domain).
+- **Event → bucket mapping** (one sample per event, non-repeating shuffle queue per bucket):
+  - Ship damage (`bullet-hit-ship` ∪ `asteroid-hit-ship`) → `retro_beep_*.ogg` (6 files).
+  - Asteroid damage (`bullet-hit-asteroid`, all tiers) → `explosion_*.ogg` (2 files).
+  - Bullet fired (per spawn) → `retro_laser_*.ogg` (2 files).
+  - Ship healed (HP delta > 0 in visible snapshot during TT) → `beep_*.ogg` (3 files).
+- **Locked spec (2026-05-12 interview)**:
+  - Engine: p5.sound (p5 1.x addon).
+  - Loudness pre-processing: ffmpeg loudnorm I=-16, TP=-1, LRA=11.
+  - Silence trim: head + tail at -50 dB.
+  - Polyphony: unlimited overlap.
+  - Selection: non-repeating shuffle (Fisher–Yates queue, refill on exhaust).
+- **Acceptance**: samples vendored to `assets/audio/<bucket>/` plus `LICENSE`; `src/audio.ts` pure helpers + `src/audio-runtime.ts` p5.sound loader; wired into sketch.ts at bullet-fire, collision events, and snapshot HP delta; per-bucket file-existence + ShuffleQueue invariant tests.
+
+---
+
 ## T-14 — HUD (`src/hud.ts`) *(2026-05-12)*
 
 - **Deps**: T-11, T-12.
