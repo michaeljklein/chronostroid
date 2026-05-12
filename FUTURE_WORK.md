@@ -26,6 +26,22 @@ This item was brought into the initial prototype during the D-INTERVIEW-1 design
 
 ---
 
+## FW-5 — True HP scrubbing during time travel
+
+- **Concept**: When a zone is in time travel, the rewound state should include HP — i.e., rewinding past a hit should restore the lost HP, matching the original "Vim-style undo tree on game state" spec. Today the implementation always advances live state (ship/HP) underneath the TT overlay; only the visual snapshot rewinds, so taking damage during TT persists when scrubbing.
+- **Why deferred**: Full HP scrubbing pulls in branching-timeline semantics. When the player rewinds past a hit, then resumes play forward, the future has diverged from what already happened — the opponent's bullets/asteroids that hit at that tick now miss (or vice versa). Resolving collisions consistently across two players' independent timelines is a real design problem (and may need a multi-snapshot "commit on FF" model where live state is replaced by the rewound state on TT exit). Out of scope for the v1 prototype.
+- **Open questions**:
+  - On TT exit at frontier, does live HP snap back to whatever the rewound timeline says — or does damage taken during TT still count?
+  - If two players are both in TT and both damage each other on diverging timelines, whose timeline "wins"?
+  - Does scrubbing also restore destroyed asteroids? Bullets in flight?
+- **Revisit when**: Playtesting shows the v1 "TT-as-overlay" model breaks the strategic intent of time travel (e.g., players ignore TT because it doesn't undo damage).
+- **Acceptance criteria**:
+  - Rewinding past a hit restores the lost HP visually and mechanically.
+  - Exiting TT at frontier preserves the branched timeline coherently.
+  - Tests for the chosen exit-commit semantics.
+
+---
+
 ## FW-4 — Playwright browser smoke + scenario suite
 
 - **Concept**: A Playwright-driven browser test suite (MCP `playwright` server already in tool list) that drives the Vite dev server against a real browser. Coverage target: (a) **lobby smoke** — load page, screenshot, assert `CHRONOSTROID` title renders; (b) **start flow** — press 2P-Start key, verify transition to `PLAYING` with two ships visible; (c) **game-over flow** — script enough input or seed enough damage to drive HP to 0, verify `P1/P2 WINS` overlay and return-to-lobby on 2P-Start.
